@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>熊本県林業研究・研修センター 出張範囲マップ</title>
+    
+    <!-- Tailwind CSS for UI styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    
+    <!-- Leaflet Control Geocoder CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        #map {
+            width: 100vw;
+            height: 100vh;
+            z-index: 1; /* Keep map below overlays */
+        }
+
+        /* Custom Title Box Overlay */
+        #title-box {
+            position: absolute;
+            top: 15px;
+            left: 50px; /* Offset to avoid zoom controls */
+            z-index: 1000; /* Ensure it stays above the map */
+            background-color: rgba(255, 255, 255, 0.95);
+            padding: 10px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border-left: 5px solid #2f855a; /* Green accent for forestry */
+            pointer-events: none; /* Let clicks pass through if needed, though usually not an issue */
+        }
+
+        /* Customize Geocoder Control */
+        .leaflet-control-geocoder {
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
+            border-radius: 8px !important;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Title Box -->
+    <div id="title-box">
+        <h1 class="text-lg font-bold text-gray-800">熊本県林業研究・研修センター</h1>
+        <p class="text-sm text-gray-600">出張範囲判定マップ (1.5km / 8.0km)</p>
+    </div>
+
+    <!-- Map Container -->
+    <div id="map"></div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    
+    <!-- Leaflet Control Geocoder JS -->
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // 1. Initialize Map
+            // Center coordinates: 熊本県林業研究・研修センター [32.825048, 130.738808]
+            const centerLatLng = L.latLng(32.825048, 130.738808);
+            const map = L.map('map').setView(centerLatLng, 13); // Zoom level 13 is good for ~8km radius
+
+            // 2. Add GSI (Geospatial Information Authority of Japan) Tile Layers
+            const stdLayer = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', {
+                attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>',
+                maxZoom: 18
+            });
+            
+            const photoLayer = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg', {
+                attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>',
+                maxZoom: 18
+            });
+
+            // デフォルトは標準地図を表示
+            stdLayer.addTo(map);
+
+            // 背景地図の切り替えコントロールを追加
+            const baseMaps = {
+                "標準地図": stdLayer,
+                "航空写真": photoLayer
+            };
+            L.control.layers(baseMaps).addTo(map);
+
+            // 3. Add Center Marker
+            const centerIcon = L.icon({
+                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+                shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                iconSize: [25, 41],
+                iconAnchor: [12, 41],
+                popupAnchor: [1, -34],
+                shadowSize: [41, 41]
+            });
+
+            const centerMarker = L.marker(centerLatLng, {icon: centerIcon}).addTo(map);
+            centerMarker.bindPopup('<b style="font-size: 14px;">熊本県林業研究・研修センター</b><br>起点').openPopup();
+
+            // 4. Draw Distance Circles
+            // 1.5km Radius Circle (Red)
+            L.circle(centerLatLng, {
+                color: '#e53e3e', // Red border
+                weight: 2,
+                fillColor: '#feb2b2', // Pale red fill
+                fillOpacity: 0.3,
+                radius: 1500 // 1500 meters
+            }).addTo(map);
+
+            // 8.0km Radius Circle (Blue)
+            L.circle(centerLatLng, {
+                color: '#3182ce', // Blue border
+                weight: 2,
+                fillColor: '#bee3f8', // Pale blue fill
+                fillOpacity: 0.15,
+                radius: 8000 // 8000 meters
+            }).addTo(map);
+
+            // 5. Variables to keep track of the user's search/click marker
+            let targetMarker = null;
+
+            // Function to calculate distance, evaluate zone, and show popup
+            function evaluateAndMark(latlng, placeName) {
+                // Remove previous marker if it exists
+                if (targetMarker) {
+                    map.removeLayer(targetMarker);
+                }
+
+                // Calculate distance in meters
+                const distMeters = centerLatLng.distanceTo(latlng);
+                const distKm = (distMeters / 1000).toFixed(2);
+                let judgment = "";
+
+                // Determine the zone based on distance
+                if (distMeters <= 1500) {
+                    judgment = "<span style='color:#e53e3e; font-weight:bold; font-size:16px;'>1.5km圏内です</span>";
+                } else if (distMeters <= 8000) {
+                    judgment = "<span style='color:#3182ce; font-weight:bold; font-size:16px;'>1.5km〜8km圏内です</span>";
+                } else {
+                    judgment = "<span style='color:#718096; font-weight:bold; font-size:16px;'>8km圏外です</span>";
+                }
+
+                // Create custom icon for target
+                const targetIcon = L.icon({
+                    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+                    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                    iconSize: [25, 41],
+                    iconAnchor: [12, 41],
+                    popupAnchor: [1, -34],
+                    shadowSize: [41, 41]
+                });
+
+                // Add new marker
+                targetMarker = L.marker(latlng, {icon: targetIcon}).addTo(map);
+
+                // Setup Popup content
+                const popupContent = `
+                    <div style="font-size: 14px; min-width: 150px;">
+                        <div style="margin-bottom: 8px; font-weight: 600; color: #4a5568;">${placeName}</div>
+                        <div style="margin-bottom: 4px;">直線距離: <b>${distKm} km</b></div>
+                        <div>判定: ${judgment}</div>
+                    </div>
+                `;
+
+                targetMarker.bindPopup(popupContent).openPopup();
+            }
+
+            // 6. Add Search Box (Leaflet Control Geocoder)
+            const geocoder = L.Control.geocoder({
+                defaultMarkGeocode: false, // We will handle the marker placement manually
+                placeholder: "住所や施設名で検索...",
+                position: 'bottomleft' // 検索窓を左下に移動
+            }).addTo(map);
+
+            // Handle Search Result
+            geocoder.on('markgeocode', function(e) {
+                const latlng = e.geocode.center;
+                const placeName = e.geocode.name || "検索地点";
+                
+                evaluateAndMark(latlng, placeName);
+                
+                // Adjust map view to fit both center and new marker
+                const bounds = L.latLngBounds(centerLatLng, latlng).pad(0.2);
+                map.fitBounds(bounds);
+            });
+
+            // 7. Interactive Distance Check on Map Click
+            map.on('click', function(e) {
+                const latlng = e.latlng;
+                const placeName = "クリックした地点";
+                evaluateAndMark(latlng, placeName);
+            });
+        });
+    </script>
+</body>
+</html>
