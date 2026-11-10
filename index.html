@@ -44,11 +44,17 @@
             pointer-events: none; /* Let clicks pass through if needed, though usually not an issue */
         }
 
-        /* Customize Geocoder Control */
+        /* Customize Geocoder Control & Position Adjustment */
         .leaflet-control-geocoder {
             box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
             border-radius: 8px !important;
             overflow: hidden;
+        }
+
+        /* 検索窓の位置を少し上に調整 (左下の隅から少し浮かす) */
+        .leaflet-bottom.leaflet-left {
+            bottom: 30px !important;
+            left: 10px !important;
         }
     </style>
 </head>
@@ -182,7 +188,7 @@
             const geocoder = L.Control.geocoder({
                 defaultMarkGeocode: false, // We will handle the marker placement manually
                 placeholder: "住所や施設名で検索...",
-                position: 'bottomleft' // 検索窓を左下に移動
+                position: 'bottomleft' // 検索窓を左下に配置
             }).addTo(map);
 
             // Handle Search Result
