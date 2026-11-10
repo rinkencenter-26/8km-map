@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>熊本県林業研究研修センター 出張範囲マップ</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Leaflet Control Geocoder CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+    <style>
+        body { margin: 0; padding: 0; }
+        #map { height: 100vh; width: 100vw; }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Leaflet Control Geocoder JS -->
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+    <script>
+        // 熊本県林業研究研修センターの座標 (熊本市中央区黒髪8丁目)
+        const centerCoords = [32.8236, 130.7377]; 
+
+        // 地図の初期化
+        const map = L.map('map').setView(centerCoords, 12);
+
+        // 地理院タイル（標準地図）
+        const stdMap = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png', {
+            attribution: "<a href='https://maps.gsi.go.jp/development/ichiran.html' target='_blank'>地理院タイル</a>",
+            maxZoom: 18
+        });
+
+        // 地理院タイル（シームレス空中写真）
+        const aerialMap = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg', {
+            attribution: "<a href='https://maps.gsi.go.jp/development/ichiran.html' target='_blank'>地理院タイル</a>",
+            maxZoom: 18
+        });
+
+        // デフォルトで標準地図を表示
+        stdMap.addTo(map);
+
+        // 背景地図の切り替えコントロール
+        const baseMaps = {
+            "標準地図": stdMap,
+            "航空写真": aerialMap
+        };
+        L.control.layers(baseMaps).addTo(map);
+
+        // 中心点のマーカー
+        L.marker(centerCoords).addTo(map)
+            .bindPopup("<b>熊本県林業研究研修センター</b>")
+            .openPopup();
+
+        // 1.5kmの円 (赤色)
+        L.circle(centerCoords, {
+            color: 'red',
+            fillColor: '#f03',
+            fillOpacity: 0.1,
+            radius: 1500 // メートル単位
+        }).addTo(map).bindPopup("半径1.5km圏内");
+
+        // 8kmの円 (青色)
+        L.circle(centerCoords, {
+            color: 'blue',
+            fillColor: '#30f',
+            fillOpacity: 0.1,
+            radius: 8000 // メートル単位
+        }).addTo(map).bindPopup("半径8km圏内");
+
+        // 検索窓の追加 (左下に配置)
+        const geocoder = L.Control.geocoder({
+            defaultMarkGeocode: true,
+            position: 'bottomleft' // 画面左下に配置
+        })
+        .on('markgeocode', function(e) {
+            const bbox = e.geocode.bbox;
+            const poly = L.polygon([
+                bbox.getSouthEast(),
+                bbox.getNorthEast(),
+                bbox.getNorthWest(),
+                bbox.getSouthWest()
+            ]).addTo(map);
+            map.fitBounds(poly.getBounds());
+        })
+        .addTo(map);
+    </script>
+</body>
+</html>
